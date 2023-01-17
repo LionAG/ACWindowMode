@@ -23,92 +23,105 @@ struct GameData
 	}
 };
 
-void Log(const std::string& text)
+static class Logger
 {
-	std::clog << text << "\n";
-}
+public:
+	static void Log(const std::string& text)
+	{
+		std::clog << text << "\n";
+	}
 
-void LogColorful(const std::string& text, unsigned short color)
+	static void LogColorful(const std::string& text, unsigned short color)
+	{
+		auto hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+
+		SetConsoleTextAttribute(hConsole, color);
+		std::clog << text << "\n";
+		SetConsoleTextAttribute(hConsole, 0x7); // Restore color.
+	}
+};
+
+class Patcher
 {
-	auto hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-
-	SetConsoleTextAttribute(hConsole, color);
-
-	std::clog << text << "\n";
-
-	SetConsoleTextAttribute(hConsole, 0x7); // Restore color.
-}
-
-int main()
-{
-	const unsigned int gameCount = 3;
-
 	// Credits to Kamzik123 for finding the offsets.
-	std::array<GameData, gameCount> Games =
+	std::array<GameData, 3> Games =
 	{
 		GameData("Assassin's Creed III", "AC3SP.exe", 0xBF2CC, 0x86, 0x8E),
 		GameData("Assassin's Creed IV Black Flag", "AC4BFSP.exe", 0x5B602, 0x86, 0x8E),
 		GameData("Assassin's Creed Rogue", "ACC.exe", 0x9CDDC, 0x0, 0x01)
 	};
 
-	bool gameFound = false;
-
-	for (unsigned int gameId = 0; gameId < Games.size(); gameId++)
+	bool Patch(std::fstream& gameFile, int gameId, bool enableWindowMode = true)
 	{
-		std::fstream gameFile(Games[gameId].GameExecutableName, std::ios::in | std::ios::out | std::ios::binary);
+		// Get the size of the game executable file
+		gameFile.seekg(0, gameFile.end);
+		int size = gameFile.tellg();
 
-		if (gameFile.is_open())
+		// Allocate a buffer to hold the contents
+		char* buffer = new char[size];
+
+		// Set the stream back to the beginning of the file
+		gameFile.seekg(0, gameFile.beg);
+
+		// Read the entire file into the buffer
+		gameFile.read(buffer, size);
+
+		// Read the current state, true if WM enabled, false otherwise
+		bool currentState = (*((unsigned char*)(buffer + Games[gameId].WindowModeOffset)) == Games[gameId].EnabledByte);
+
+		// Do not override the file if it is in the correct state
+		if (currentState != enableWindowMode)
 		{
-			gameFound = true;
-			Log("Found " + Games[gameId].GameName);
-
-			// Get the size of the game executable file
-			gameFile.seekg(0, gameFile.end);
-			int size = gameFile.tellg();
-
-			// Allocate a buffer to hold the contents
-			char* buffer = new char[size];
-
-			// Set the stream back to the beginning of the file
-			gameFile.seekg(0, gameFile.beg);
-
-			// Read the entire file into the buffer
-			gameFile.read(buffer, size);
-
-			// Read the current state, true if WM enabled, false otherwise
-			bool windowedState = (*((unsigned char*)(buffer + Games[gameId].WindowModeOffset)) == Games[gameId].EnabledByte);
-			
-			if (windowedState)
+			if (!enableWindowMode)
 			{
 				// Disable the windowed mode
 				*((unsigned char*)(buffer + Games[gameId].WindowModeOffset)) = Games[gameId].DisabledByte;
-				LogColorful("Disabled windowed mode", 0xA);
+				Logger::LogColorful("Disabled windowed mode", 0xC);
 			}
 			else
 			{
 				// Enable the windowed mode
 				*((unsigned char*)(buffer + Games[gameId].WindowModeOffset)) = Games[gameId].EnabledByte;
 
-				LogColorful("Enabled windowed mode", 0xA);
+				Logger::LogColorful("Enabled windowed mode", 0xA);
 			}
-			
+
 			// Write the modified bytes
 			gameFile.seekg(0, gameFile.beg);
 			gameFile.write(buffer, size);
-
-			// Delete the buffer
-			delete[] buffer;
-
-			// Explicitly close the file for clarity. This could be ommited because the object's destructor
-			// will close the file when it gets out of scope.
-			gameFile.close();
 		}
+
+		// Delete the buffer
+		delete[] buffer;
 	}
 
-	if (!gameFound)
+	bool StartProcess(const std::string& fileName)
+	{
+		STARTUPINFO si;
+		PROCESS_INFORMATION pi;
+
+		ZeroMemory(&si, sizeof(si));
+		ZeroMemory(&pi, sizeof(pi));
+
+		si.cb = sizeof(si);
+
+		// Start the process. 
+		if (CreateProcess(fileName.c_str(), NULL, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi))
+		{
+			// Close handles. 
+			CloseHandle(pi.hProcess);
+			CloseHandle(pi.hThread);
+
+			return true;
+		}
+
+		return false;
+	}
+
+	void OnGameNotFound()
 	{
 		std::cout << "Game executable not found, make sure to run this program in the game directory.\n";
-		std::cout << "The following games are supported:\n\n";
+		std::cout << "The patchers supports the following games:\n\n";
 
 		for (unsigned int gameId = 0; gameId < Games.size(); gameId++)
 		{
@@ -116,8 +129,64 @@ int main()
 		}
 	}
 
-	std::cout << "\nPress any key to close the program.";
-	std::cin.get();
+public:
+	bool TryPatch(bool enableWindowMode = true, bool startProcess = false)
+	{
+		bool gameFound = false;
+
+		for (unsigned int gameId = 0; gameId < Games.size(); gameId++)
+		{
+			std::fstream gameFile(Games[gameId].GameExecutableName, std::ios::in | std::ios::out | std::ios::binary);
+
+			if (gameFile.is_open())
+			{
+				gameFound = true;
+				Logger::Log("Found " + Games[gameId].GameName);
+
+				Patch(gameFile, gameId, enableWindowMode);
+				gameFile.close();
+
+				if (startProcess)
+				{
+					StartProcess(Games[gameId].GameExecutableName);
+				}
+			}
+		}
+
+		if (!gameFound)
+		{
+			OnGameNotFound();
+		}
+	}
+};
+
+int main(int argc, char** argv)
+{
+	if (argc == 2)
+	{
+		Patcher p;
+
+		if (!strcmp(argv[1], "--patch"))
+		{
+			p.TryPatch(true);
+		}
+		else if (!strcmp(argv[1], "--restore"))
+		{
+			p.TryPatch(false);
+		}
+		else if (!strcmp(argv[1], "--run-windowed"))
+		{
+			p.TryPatch(true, true);
+		}
+		else if (!strcmp(argv[1], "--run-fullscreen"))
+		{
+			p.TryPatch(false, true);
+		}
+	}
+	else
+	{
+		Logger::Log("Use one of the following: --patch | --restore | --run-windowed | --run-fullscreen");
+	}
 
 	return 0;
 }
