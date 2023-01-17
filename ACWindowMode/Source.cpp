@@ -23,7 +23,7 @@ struct GameData
 	}
 };
 
-static class Logger
+class Logger
 {
 public:
 	static void Log(const std::string& text)
@@ -55,7 +55,7 @@ class Patcher
 	{
 		// Get the size of the game executable file
 		gameFile.seekg(0, gameFile.end);
-		int size = gameFile.tellg();
+		long long size = gameFile.tellg();
 
 		// Allocate a buffer to hold the contents
 		char* buffer = new char[size];
@@ -93,6 +93,7 @@ class Patcher
 
 		// Delete the buffer
 		delete[] buffer;
+		return true;
 	}
 
 	bool StartProcess(const std::string& fileName)
@@ -150,6 +151,8 @@ public:
 				{
 					StartProcess(Games[gameId].GameExecutableName);
 				}
+
+				return true;
 			}
 		}
 
@@ -157,6 +160,8 @@ public:
 		{
 			OnGameNotFound();
 		}
+
+		return false;
 	}
 };
 
