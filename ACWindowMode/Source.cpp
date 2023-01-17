@@ -41,12 +41,14 @@ void LogColorful(const std::string& text, unsigned short color)
 
 int main()
 {
-	const unsigned int gameCount = 2;
+	const unsigned int gameCount = 3;
 
+	// Credits to Kamzik123 for finding the offsets.
 	std::array<GameData, gameCount> Games =
 	{
 		GameData("Assassin's Creed III", "AC3SP.exe", 0xBF2CC, 0x86, 0x8E),
-		GameData("Assassin's Creed IV Black Flag", "AC4BFSP.exe", 0x5B602, 0x86, 0x8E)
+		GameData("Assassin's Creed IV Black Flag", "AC4BFSP.exe", 0x5B602, 0x86, 0x8E),
+		GameData("Assassin's Creed Rogue", "ACC.exe", 0x9CDDC, 0x0, 0x01)
 	};
 
 	bool gameFound = false;
