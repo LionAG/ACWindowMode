@@ -122,7 +122,7 @@ class Patcher
 	void OnGameNotFound()
 	{
 		std::cout << "Game executable not found, make sure to run this program in the game directory.\n";
-		std::cout << "The patchers supports the following games:\n\n";
+		std::cout << "The following games are supported:\n\n";
 
 		for (unsigned int gameId = 0; gameId < Games.size(); gameId++)
 		{
