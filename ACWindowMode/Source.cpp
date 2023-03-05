@@ -44,8 +44,11 @@ public:
 class Patcher
 {
 	// Credits to Kamzik123 for finding the offsets.
-	std::array<GameData, 3> Games =
+	std::array<GameData, 6> Games =
 	{
+		GameData("Assassin's Creed II", "AssassinsCreedIIGame.exe", 0x1F4C1, 0x86, 0x8E),
+		GameData("Assassin's Creed Brotherhood", "ACBSP.exe", 0x16961, 0x86, 0x8E),
+		GameData("Assassin's Creed Revelations", "ACRSP.exe", 0xFCA1, 0x86, 0x8E),
 		GameData("Assassin's Creed III", "AC3SP.exe", 0xBF2CC, 0x86, 0x8E),
 		GameData("Assassin's Creed IV Black Flag", "AC4BFSP.exe", 0x5B602, 0x86, 0x8E),
 		GameData("Assassin's Creed Rogue", "ACC.exe", 0x9CDDC, 0x0, 0x01)
@@ -90,6 +93,10 @@ class Patcher
 			gameFile.seekg(0, gameFile.beg);
 			gameFile.write(buffer, size);
 		}
+		else
+		{
+			Logger::Log("Skipped patching, already in the correct state");
+		}
 
 		// Delete the buffer
 		delete[] buffer;
@@ -113,6 +120,7 @@ class Patcher
 			CloseHandle(pi.hProcess);
 			CloseHandle(pi.hThread);
 
+			Logger::Log("Starting process " + fileName);
 			return true;
 		}
 
@@ -142,7 +150,7 @@ public:
 			if (gameFile.is_open())
 			{
 				gameFound = true;
-				Logger::Log("Found " + Games[gameId].GameName);
+				Logger::Log("Using " + Games[gameId].GameName);
 
 				Patch(gameFile, gameId, enableWindowMode);
 				gameFile.close();
